@@ -1,0 +1,14 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+*.py[cod]
+.env
+tests
+test_e2e.py
+data/banks
+data/uploads
+data/audit.jsonl
+data/audit_chain.jsonl
+data/consents.json
+data/rx_store.json

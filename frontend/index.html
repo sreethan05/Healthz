@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cliniva — Local Demo</title>
+<link rel="manifest" href="/app/manifest.json" />
+<link rel="stylesheet" href="/app/styles.css" />
+</head>
+<body>
+<header>
+  <div><strong>Cliniva</strong> <span class="pill">Local demo • consent-gated memory + safety review + verifiable Rx</span></div>
+  <div class="muted">Demo credentials are built in • Doctor validation required • Do not use real patient data</div>
+</header>
+<p id="status" class="status" role="status" aria-live="polite">Connecting to the local demo…</p>
+<main>
+  <section class="card">
+    <h2>1. Patient + Consent (DPDP + ABDM)</h2>
+    <div class="row"><label class="field-label" for="patient">Demo patient</label><select id="patient"></select><button id="saveConsent">Save patient consent</button><button id="loadTimeline">Load timeline</button><button id="notice">DPDP notice</button><button id="memoryBtn">Memory (models)</button></div>
+    <div class="row">
+      <label><input type="checkbox" id="cHistory" checked /> history</label>
+      <label><input type="checkbox" id="cAllergies" checked /> allergies</label>
+      <label><input type="checkbox" id="cMeds" checked /> medications</label>
+      <label><input type="checkbox" id="cRevoked" /> revoked (lock)</label>
+    </div>
+    <pre id="timeline">Select patient → Load timeline. Try revoked ON to prove locking.</pre>
+    <pre id="extra">DPDP notice / mental models appear here.</pre>
+  </section>
+
+  <section class="card">
+    <h2>2. Consult → Scribe + Grounded Safety</h2>
+    <div class="row">
+      <button data-t="Doctor: What brings you today? Patient: I have fever and throat pain since 2 days. Doctor: Any drug allergies? Patient: Yes, penicillin gave me rash last year.">Sample: throat + penicillin allergy (CONFLICT)</button>
+      <button data-t="Doctor: BP check today? Patient: Yes, mild headache. No known drug allergies.">Sample: BP, no allergy history</button>
+    </div>
+    <label class="sr-only" for="transcript">Consult transcript</label><textarea id="transcript" rows="4" placeholder="Consult transcript…"></textarea>
+    <div class="row"><button id="consult">Run consult</button><button id="altBtn">Alternatives for flagged drug</button></div>
+    <div class="grid">
+      <div><h3>SOAP draft + ICD hints</h3><pre id="soap">—</pre></div>
+      <div><h3>Safety verdict (cited)</h3><pre id="safety">—</pre></div>
+    </div>
+    <div><h3>Memory used (models → observations → facts)</h3><pre id="mem">—</pre></div>
+    <div><h3>Alternatives + DailyMed</h3><pre id="alts">—</pre></div>
+  </section>
+
+  <section class="card">
+    <h2>3. Doctor correction → learning + re-check + booking</h2>
+    <label class="sr-only" for="correction">Doctor correction and revised plan</label><textarea id="correction" rows="2">Stop amoxicillin — penicillin allergy. Use azithromycin 500mg OD x3d. Avoid penicillin-class.</textarea>
+    <div class="row"><button id="correct">Apply correction</button></div>
+    <div class="grid">
+      <div><h3>Corrected plan</h3><pre id="corrected">—</pre></div>
+      <div><h3>Re-check + Booking + Learning</h3><pre id="recheck">—</pre></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>4. Sign → QR → Pharmacy verify → FHIR</h2>
+    <div class="row"><label class="sr-only" for="meds">Prescription medication and dose</label><input id="meds" value="azithromycin 500mg OD x3d" style="flex:1" /><button id="sign">Sign + QR</button></div>
+    <label class="review-confirm"><input type="checkbox" id="uncertainConfirm" />I reviewed the full regimen and confirm signing when the automated interaction screen reports insufficient data.</label>
+    <div class="grid">
+      <div><h3>Rx + QR</h3><pre id="rx">—</pre><img id="qr" alt="Prescription verification QR code" style="max-width:220px" /><div class="row"><button id="printBtn">Print Rx</button></div></div>
+      <div><h3>Verify</h3><pre id="verify">—</pre><div class="row"><button id="verifyBtn">Verify token</button><button id="tamperBtn">Tamper demo</button><a id="verifyLink" target="_blank" rel="noopener noreferrer">Verify page</a><a id="fhirLink">Download FHIR bundle</a></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>5. Audit trail (DPDP/ABDM evidence)</h2>
+    <div class="row"><button id="auditBtn">Load audit</button></div>
+    <pre id="audit">—</pre>
+  </section>
+</main>
+<script src="/app/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+fastapi==0.136.3
+uvicorn==0.30.6
+pydantic==2.13.0
+requests==2.32.3
+qrcode==7.4.2
+PyJWT==2.10.1
+python-multipart==0.0.12
+cryptography==43.0.1

@@ -1,0 +1,25 @@
+{
+  "patient_id": "demo-001",
+  "abha_id": "91-1234-5678-9012",
+  "name": "Demo Patient",
+  "age": 34,
+  "language": "en",
+  "consent": {
+    "history": true,
+    "allergies": true,
+    "medications": true,
+    "purpose": "OPD consultation at Cliniva Demo Clinic",
+    "valid_until": "2026-10-06",
+    "revoked": false
+  },
+  "allergies": [
+    {"agent": "penicillin", "reaction": "rash, breathing difficulty", "severity": "major", "source": "past record 2024-08-12"}
+  ],
+  "conditions": ["asthma"],
+  "current_meds": ["salbutamol inhaler"],
+  "past_prescriptions": [
+    {"date": "2024-08-12", "drug": "amoxicillin 500mg", "adverse_event": "allergic rash — stopped", "doctor_note": "avoid penicillin-class"}
+  ],
+  "preferences": {"followup_days": ["Saturday"], "slot": "morning", "channel": "sms", "language": "en"},
+  "seed_transcript": "Doctor: What brings you today? Patient: I have fever and throat pain since 2 days. Doctor: Any drug allergies? Patient: Yes, penicillin gave me rash last year."
+}

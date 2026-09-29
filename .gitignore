@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.env
+.venv/
+data/banks/
+data/uploads/
+data/rx_store.json
+data/audit.jsonl
+data/audit_chain.jsonl
+data/consents.json
+*.log

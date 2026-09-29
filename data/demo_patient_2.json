@@ -1,0 +1,23 @@
+{
+  "patient_id": "demo-002",
+  "abha_id": "91-9999-0000-1111",
+  "name": "Safe Case Patient",
+  "age": 45,
+  "language": "en",
+  "consent": {
+    "history": true,
+    "allergies": true,
+    "medications": true,
+    "purpose": "OPD consultation at Cliniva Demo Clinic",
+    "valid_until": "2026-10-06",
+    "revoked": false
+  },
+  "allergies": [],
+  "conditions": ["hypertension"],
+  "current_meds": ["amlodipine 5mg OD"],
+  "past_prescriptions": [
+    {"date": "2024-05-01", "drug": "amlodipine 5mg", "adverse_event": "none", "doctor_note": "BP controlled"}
+  ],
+  "preferences": {"followup_days": ["Sunday"], "slot": "evening", "channel": "whatsapp", "language": "en"},
+  "seed_transcript": "Doctor: BP check today? Patient: Yes, mild headache. No known drug allergies."
+}
