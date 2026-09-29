@@ -1,0 +1,28 @@
+name: Add QR library
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and commit qr.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          REPO="https://x-access-token:${GITHUB_TOKEN}@github.com/sreethan05/Healthz.git"
+          git clone --depth 1 "$REPO" repo
+          cd repo
+          curl -fsSL "https://unpkg.com/qrcode-generator@1.4.4/qrcode.js" -o cliniva/qr.js
+          git add cliniva/qr.js
+          git config user.name "sreethan05"
+          git config user.email "Kasagonisaisreethan@gmail.com"
+          git commit -m "Add qrcode-generator library (MIT) for scannable QR codes"
+          git rm -q .github/workflows/add-qr.yml
+          git commit -m "Remove one-time QR import workflow"
+          git push origin main
