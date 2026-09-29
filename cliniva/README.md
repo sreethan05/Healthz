@@ -19,16 +19,16 @@ so the demo works from any static host or the local filesystem.
 ## 3-minute demo script
 
 1. **Login as Doctor** → `/doctor` consult console.
-2. **Start Consult** → transcript streams. The *Amoxicillin* line triggers the
-   critical safety popup (Penicillin allergy) → **Change prescription** swaps to
-   Azithromycin and the stream resumes.
+2. **Start Consult** → transcript streams (with typing indicator). The
+   *Amoxicillin* line triggers the critical safety popup (Penicillin allergy) →
+   **Change prescription** swaps to Azithromycin and the stream resumes.
 3. **End Consult** → draft Rx (editable). In the sign panel, first enter a wrong
    patient ID (e.g. `P-9999`) → inline error. Then enter **P-1024** → signed,
    Rx ID `RX-8F3A-2026`, QR preview appears.
 4. **Logout → Log in as Patient** → visit summary, current e-Rx with large QR,
-   follow-up cards with reminder toggles.
-5. Click the QR (or open `#/rx/8F3A`) → **pharmacy verifier**: VALID →
-   **Mark as Dispensed** → DISPENSED. Try `#/rx/XXXX` for INVALID.
+   follow-up cards with reminder toggles (toast confirms each reminder).
+5. Scan the QR with a phone (same network) or click it → **pharmacy verifier**:
+   VALID → **Mark as Dispensed** → DISPENSED. Try `#/rx/XXXX` for INVALID.
 6. Access-denied demo: while logged in as patient, open `#/doctor`, or
    `#/patient?id=P-9999`.
 
@@ -42,5 +42,10 @@ In `mocks.js`: `getMockPatient`, `streamMockTranscript`, `checkMockSafety`,
 
 - RBAC is a client-side demo guard only (sessionStorage `cliniva_role`) — no
   real security claims.
-- QR tiles are deterministic mock renders, not scannable codes.
+- QR codes are **real and scannable**: `qr.js` (qrcode-generator, MIT licence —
+  Copyright Kazuhiko Arase) renders genuine QR codes. Serve the demo over http
+  (e.g. `python3 -m http.server`) and a phone camera opens the pharmacy verify
+  screen directly from the QR tile. From `file://` the code falls back to the
+  short verify code.
+- Micro-animations respect `prefers-reduced-motion`.
 - Statuses reset on page reload (in-memory only).
