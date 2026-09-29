@@ -92,8 +92,24 @@
     if (b) b.addEventListener("click", logout);
   }
 
-  /* Deterministic pseudo-QR (mock only). Whole tile is a link. */
+  /* Real scannable QR (qrcode-generator, MIT — see cliniva/qr.js).
+   * When served over http(s) the code encodes the full verify URL so a phone
+   * camera opens the pharmacy screen; from file:// it falls back to the short
+   * code text. Whole tile stays a link. */
+  function qrContent(value) {
+    var base = location.href.split("#")[0];
+    return /^https?:/i.test(base) ? base + value : value;
+  }
+
   function qrTile(value, sizeClass) {
+    var cls = "qr " + (sizeClass || "");
+    if (typeof qrcode === "function") {
+      return (
+        '<a class="' + cls + '" href="' + value + '" aria-label="Open pharmacy verify link">' +
+        '<canvas data-qr="' + qrContent(value) + '"></canvas></a>'
+      );
+    }
+    /* fallback: deterministic pseudo-QR (only if the lib failed to load) */
     var seed = 0;
     for (var i = 0; i < value.length; i++) seed = (seed * 31 + value.charCodeAt(i)) >>> 0;
     function rnd() { seed = (1103515245 * seed + 12345) >>> 0; return (seed >>> 16) / 65536; }
@@ -114,13 +130,82 @@
       }
     }
     return (
-      '<a class="qr ' + (sizeClass || "") + '" href="' + value + '" aria-label="Open pharmacy verify link">' +
+      '<a class="' + cls + '" href="' + value + '" aria-label="Open pharmacy verify link">' +
       '<span class="qr-grid">' + cells + "</span></a>"
     );
   }
 
+  /* draw every pending QR canvas on the page */
+  function paintQrTiles() {
+    if (typeof qrcode !== "function") return;
+    var tiles = document.querySelectorAll("canvas[data-qr]");
+    for (var i = 0; i < tiles.length; i++) {
+      var c = tiles[i];
+      if (c.getAttribute("data-painted")) continue;
+      try {
+        var qr = qrcode(0, "M");
+        qr.addData(c.getAttribute("data-qr"));
+        qr.make();
+        var n = qr.getModuleCount();
+        var quiet = 4, scale = 8, W = (n + quiet * 2) * scale;
+        c.width = W;
+        c.height = W;
+        var ctx = c.getContext("2d");
+        if (!ctx) continue; /* canvas unsupported (e.g. test env) */
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, W, W);
+        ctx.fillStyle = "#26211b";
+        for (var r = 0; r < n; r++) {
+          for (var col = 0; col < n; col++) {
+            if (qr.isDark(r, col)) {
+              ctx.fillRect((col + quiet) * scale, (r + quiet) * scale, scale, scale);
+            }
+          }
+        }
+        c.setAttribute("data-painted", "1");
+      } catch (e) {
+        /* leave tile empty; the link itself still works */
+      }
+    }
+  }
+
   function chip(text, tone) {
     return '<span class="chip chip-' + tone + '">' + text + "</span>";
+  }
+
+  /* ---------- toast ---------- */
+
+  var toastTimer = null;
+
+  function toast(msg) {
+    var el = document.getElementById("toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "toast";
+      el.className = "toast";
+      el.setAttribute("role", "status");
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove("show"); }, 2200);
+  }
+
+  /* ---------- transcript typing indicator ---------- */
+
+  function addTyping() {
+    removeTyping();
+    var t = document.getElementById("transcript");
+    if (t) {
+      t.insertAdjacentHTML("beforeend",
+        '<div class="bbl bbl-dr bbl-typing" aria-hidden="true"><span class="dots"><i></i><i></i><i></i></span></div>');
+    }
+  }
+
+  function removeTyping() {
+    var el = document.querySelector("#transcript .bbl-typing");
+    if (el) el.remove();
   }
 
   /* ---------- login ---------- */
@@ -207,7 +292,8 @@
       document.getElementById("transcript-card").style.display = "none";
       renderDraft();
     }
-    if (s.phase === "signed") renderSignedPanel(s.signed);
+    if (s.phase === "signed") { renderSignedPanel(s.signed); }
+    paintQrTiles();
   }
 
   function bubble(l) {
@@ -243,9 +329,11 @@
     document.getElementById("end-btn").disabled = false;
     if (!s.shown.length) document.getElementById("transcript").innerHTML = "";
     refreshSafetyStrip();
+    addTyping();
 
     s.stream = streamMockTranscript(
       function (idx, line) {
+        removeTyping();
         var shownLine = { speaker: line.speaker, text: line.text, flagged: false };
         var safety = checkMockSafety(line);
         if (safety.status === "critical") {
@@ -256,9 +344,11 @@
         } else {
           s.shown.push(shownLine);
           appendBubble(shownLine);
+          if (idx < MOCK_TRANSCRIPT.length - 1) addTyping();
         }
       },
       function () {
+        removeTyping();
         /* stream complete — nothing to do; doctor ends consult */
       }
     );
@@ -274,6 +364,7 @@
 
   function haltForPopup(line, safety, flaggedIdx) {
     var s = docState;
+    removeTyping();
     if (s.stream) { s.stream.stop(); s.stream = null; }
     s.phase = "paused";
     document.getElementById("transcript").querySelectorAll(".bbl")[flaggedIdx].classList.add("bbl-flagged");
@@ -326,18 +417,21 @@
     var i = s.shown.length;
     (function tick() {
       if (i >= MOCK_TRANSCRIPT.length || s.phase !== "streaming") return;
+      removeTyping();
       var line = MOCK_TRANSCRIPT[i];
       var shownLine = { speaker: line.speaker, text: line.text, flagged: false };
       if (line.drug) shownLine.text = line.text.replace(/Amoxicillin/g, s.pendingDrug);
       s.shown.push(shownLine);
       appendBubble(shownLine);
       i++;
+      if (i < MOCK_TRANSCRIPT.length) addTyping();
       setTimeout(tick, 1300);
     })();
   }
 
   function endConsult() {
     var s = docState;
+    removeTyping();
     if (s.stream) { s.stream.stop(); s.stream = null; }
     s.phase = "draft";
     document.getElementById("end-btn").disabled = true;
@@ -411,6 +505,7 @@
       "</div>";
     if (draftChip) draftChip.insertAdjacentHTML("afterend", panel);
     else host.insertAdjacentHTML("beforeend", panel);
+    paintQrTiles();
   }
 
   /* ---------- patient screen ---------- */
@@ -424,10 +519,10 @@
     var fuHtml = followUps.length
       ? followUps.map(function (f, i) {
           return (
-            '<div class="card followup-card">' +
+            '<div class="card followup-card" style="--d:' + (80 + i * 80) + 'ms">' +
             '<span class="fu-icon">' + f.icon + "</span>" +
             '<div class="fu-body"><strong>' + f.title + "</strong><span class=\"muted\">" + f.due + "</span></div>" +
-            '<label class="toggle"><input type="checkbox" data-fu="' + i + '"><span></span>Remind me</label>' +
+            '<label class="toggle"><input type="checkbox" data-fu="' + i + '" data-title="' + f.title + '"><span></span>Remind me</label>' +
             "</div>"
           );
         }).join("")
@@ -449,10 +544,14 @@
       "</div></main>";
     wireLogout();
 
-    // reminder toggles are local state only
+    // reminder toggles are local state only; give feedback via toast
     document.querySelectorAll('.toggle input[type="checkbox"]').forEach(function (c) {
-      c.addEventListener("change", function () { /* local state only (demo) */ });
+      c.addEventListener("change", function () {
+        var title = this.getAttribute("data-title") || "follow-up";
+        toast(this.checked ? "Reminder set — " + title : "Reminder off — " + title);
+      });
     });
+    paintQrTiles();
   }
 
   /* ---------- pharmacy verifier ---------- */
@@ -487,6 +586,7 @@
     if (status === "VALID") {
       document.getElementById("dispense-btn").addEventListener("click", function () {
         dispenseMockRx(id);
+        toast("Prescription marked as dispensed");
         renderPharmacy(id); // re-render to DISPENSED
       });
     }
