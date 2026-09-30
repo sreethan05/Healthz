@@ -1,11 +1,13 @@
-"""Auth/RBAC demo: MCI format check + hashed passwords + JWT roles. Swap with Keycloak/ABDM HPR in prod."""
-import hashlib
-import hmac
+"""Auth/RBAC: SQLite PBKDF2 user store + JWT roles + account lockout.
+
+Swap with Keycloak / ABDM HPR in production; the JWT contract stays the same.
+"""
 import os
 import re
 import time
 import jwt
 from fastapi import HTTPException
+from backend import users
 from backend.config import ENV
 
 SECRET = os.getenv("CLINIVA_AUTH_SECRET", "")
@@ -17,13 +19,6 @@ if ENV == "prod" and len(SECRET) < 32:
     raise RuntimeError("CLINIVA_AUTH_SECRET must be at least 32 characters in prod")
 MCI_RE = re.compile(r"^(MCI|KMC|TNMC|MMC)-[A-Z0-9-]{4,20}$", re.I)
 
-USERS = {
-    "dr-demo": {"pw_hash": hashlib.sha256(b"demo123").hexdigest(), "role": "doctor", "reg": "MCI-12345"},
-    "pharm-demo": {"pw_hash": hashlib.sha256(b"demo123").hexdigest(), "role": "pharmacist", "reg": "PCI-999"},
-    "patient-demo": {"pw_hash": hashlib.sha256(b"demo123").hexdigest(), "role": "patient", "patient_id": "demo-001"},
-    "patient-demo-2": {"pw_hash": hashlib.sha256(b"demo123").hexdigest(), "role": "patient", "patient_id": "demo-002"},
-}
-
 
 def valid_mci(reg: str) -> bool:
     return bool(MCI_RE.match((reg or "").strip()))
@@ -32,15 +27,19 @@ def valid_mci(reg: str) -> bool:
 def login(username: str, password: str) -> dict:
     if ENV == "prod":
         return {"ok": False, "reason": "Demo credential login is disabled in prod; configure an identity provider."}
-    u = USERS.get(username)
-    if not isinstance(password, str) or len(password) > 1024:
+    if not isinstance(username, str) or not username:
         return {"ok": False, "reason": "bad credentials"}
-    candidate = hashlib.sha256(password.encode()).hexdigest()
-    if not u or not hmac.compare_digest(u["pw_hash"], candidate):
-        return {"ok": False, "reason": "bad credentials"}
-    tok = jwt.encode({"sub": username, "role": u["role"], "reg": u.get("reg"),
+    result = users.authenticate(username, password)
+    if not result.get("ok"):
+        return {"ok": False, "reason": result.get("reason", "bad credentials")}
+    u = result["user"]
+    tok = jwt.encode({"sub": u["username"], "role": u["role"], "reg": u.get("reg"),
                       "patient_id": u.get("patient_id"), "exp": int(time.time()) + 8 * 3600}, SECRET, algorithm="HS256")
     return {"ok": True, "token": tok, "role": u["role"]}
+
+
+def change_password(username: str, old_password: str, new_password: str) -> dict:
+    return users.change_password(username, old_password, new_password)
 
 
 def require_role(token: str, roles: list) -> dict:
