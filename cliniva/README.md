@@ -1,59 +1,81 @@
-# Cliniva — Frontend / UI-UX Demo (Hackathon)
+# Cliniva — Production e-Prescription Platform
 
-Frontend-only demo of the consult-to-prescription flow. **All data is mock data**
-behind simple function contracts — no backend, no real STT, auth, Hindsight calls
-or QR crypto. The backend will replace the contracts later.
+Consult-to-prescription platform: JWT authentication with role-based access
+(doctor / patient / pharmacist), patient-controlled consent (DPDP-aligned),
+memory-assisted SOAP drafting, drug-interaction safety screening, HMAC-signed
+e-prescriptions with scannable QR codes, pharmacy verification and dispense
+tracking, audit logging, and FHIR export.
 
-## Live demo
+**No mock data.** The frontend talks to the real FastAPI backend for every action.
 
-**https://sreethan05.github.io/Healthz/cliniva/**
-
-Hosted via GitHub Pages — open it on any device, no setup needed. The QR codes
-in the demo encode this live URL, so scanning one with a phone camera opens the
-pharmacy verify screen directly.
-
-## Run it locally
-
-No build step. Either open `index.html` directly in a browser, or serve the folder:
+## Architecture
 
 ```
-python3 -m http.server 8000
-# open http://localhost:8000
+cliniva/               production web app (served by the API at /app)
+  index.html             shell
+  api.js                 API client: base-URL resolution, JWT session, error handling
+  app.js                 screens: login, doctor console, patient portal, pharmacy verifier
+  styles.css             design system
+  qr.js                  qrcode-generator (MIT, Kazuhiko Arase) — client QR fallback
+backend/               FastAPI service (auth, consent, consult, safety, sign, dispense…)
+data/                  patient records, memory banks, consent store, Rx store, DDInter rules
+memory/                Hindsight memory client (local JSON banks; HINDSIGHT_URL for remote)
 ```
 
-Routes use hash-based paths (`#/login`, `#/doctor`, `#/patient?id=P-1024`, `#/rx/8F3A`)
-so the demo works from any static host or the local filesystem.
+## Quick start
 
-## 3-minute demo script
+```
+run.bat                      (Windows)
+# or
+pip install -r backend/requirements.txt
+python backend/seed.py       # seed patient memory banks
+uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
 
-1. **Login as Doctor** → `/doctor` consult console.
-2. **Start Consult** → transcript streams (with typing indicator). The
-   *Amoxicillin* line triggers the critical safety popup (Penicillin allergy) →
-   **Change prescription** swaps to Azithromycin and the stream resumes.
-3. **End Consult** → draft Rx (editable). In the sign panel, first enter a wrong
-   patient ID (e.g. `P-9999`) → inline error. Then enter **P-1024** → signed,
-   Rx ID `RX-8F3A-2026`, QR preview appears.
-4. **Logout → Log in as Patient** → visit summary, current e-Rx with large QR,
-   follow-up cards with reminder toggles (toast confirms each reminder).
-5. Scan the QR with a phone (any network) or click it → **pharmacy verifier**:
-   VALID → **Mark as Dispensed** → DISPENSED. Try `#/rx/XXXX` for INVALID.
-6. Access-denied demo: while logged in as patient, open `#/doctor`, or
-   `#/patient?id=P-9999`.
+Open **http://127.0.0.1:8000/app/**
 
-## Mock contracts (backend replaces later)
+### Accounts (evaluation set, password `demo123`)
 
-In `mocks.js`: `getMockPatient`, `streamMockTranscript`, `checkMockSafety`,
-`buildMockDraftRx`, `signMockRx`, `getMockFollowUps`, `verifyMockRx`,
-`dispenseMockRx`, `getMockRx`, `getMockVisitSummary`.
+| Username        | Role       | Notes                                    |
+|-----------------|------------|------------------------------------------|
+| `dr-demo`       | doctor     | reg MCI-12345; consult, sign, audit      |
+| `patient-demo`  | patient    | demo-001; penicillin allergy (conflict case) |
+| `patient-demo-2`| patient    | demo-002; safe case                      |
+| `pharm-demo`    | pharmacist | verify and dispense                      |
 
-## Notes
+## Production flow
 
-- RBAC is a client-side demo guard only (sessionStorage `cliniva_role`) — no
-  real security claims.
-- QR codes are **real and scannable**: `qr.js` (qrcode-generator, MIT licence —
-  Copyright Kazuhiko Arase) renders genuine QR codes. Served over http (or the
-  live Pages URL above), a phone camera opens the pharmacy verify screen
-  directly from the QR tile. From `file://` the code falls back to the short
-  verify code.
-- Micro-animations respect `prefers-reduced-motion`.
-- Statuses reset on page reload (in-memory only).
+1. **Patient grants consent** in the portal (history / allergies / medications). Without it the API refuses every clinical action (HTTP 403).
+2. **Doctor**: pick patient → type or dictate the consult (browser speech-to-text) → the API drafts a SOAP note from memory, screens the regimen against allergies + DDInter/FDA rules.
+3. **Unsafe medication** (e.g. amoxicillin with penicillin allergy) → critical modal with mechanism, sources and safer alternatives; switching applies a server-side correction and re-screens.
+4. **Sign**: the API blocks unsafe prescriptions (409), requires explicit clinician confirmation when screening is incomplete, then issues an HMAC-signed prescription (Rx ID, SHA-256 hash, QR with verify URL + hash prefix). Valid 30 days.
+5. **Patient portal**: profile, consent switches (revoking a scope locks doctor access immediately), prescriptions with QR codes.
+6. **Pharmacy**: scan the QR (or open the link) → public verifier checks signature + hash prefix → VALID/DISPENSED/EXPIRED; a pharmacist signs in to mark dispensed. Tampered hashes are rejected.
+7. Every step is audit-logged; FHIR bundles are exportable per prescription.
+
+## API surface (selected)
+
+`POST /auth/login` · `GET /patients` · `POST /consult` · `POST /correct` · `POST /sign` ·
+`POST /verify` · `GET /rx/{id}` · `GET /fhir-rx/{id}` · `GET /timeline/{id}` ·
+`GET /me` · `POST /me/consent` · `GET /me/rx` · `GET /public/rx/{id}?h=` · `POST /dispense/{id}` ·
+`GET /audit` · `GET /ops/health`
+
+## Production hardening notes
+
+- Set `CLINIVA_ENV=prod` — this disables demo credentials and enforces secret requirements.
+- Set `CLINIVA_AUTH_SECRET` and `CLINIVA_RX_SECRET` (32+ chars each).
+- Set `CLINIVA_VERIFY_BASE` to your public origin so QR links are correct behind proxies (defaults to the request host).
+- Set `CLINIVA_CORS_ORIGINS` if the app is hosted separately from the API.
+- Serve over HTTPS (reverse proxy); the API sets HSTS-grade security headers, rate limits auth/consult/sign, and stores no secrets in code.
+- Swap the local auth users for a real identity provider (Keycloak / ABDM HPR) before real clinical use; set `ABDM_MODE=sandbox|prod` for ABDM consent artefacts.
+
+## Deployment
+
+The included `Dockerfile` containerises the API. Any host works (Render, Railway, Fly.io, your own VM): run uvicorn behind TLS, mount `data/` on a persistent volume, set the env vars above. The QR verify links derive from the serving host automatically.
+
+## Verification
+
+`e2e_prod.js` (happy-dom) drives the real app against the real API: login → consult → conflict → correction → sign → patient portal → pharmacy verify → dispense → tamper rejection.
+
+---
+Cliniva supports, does not replace, clinical judgment. Not certified for real patient care.
