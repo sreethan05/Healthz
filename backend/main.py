@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 from backend.abdm import consent_artefact, hip_release_bundle
 from backend.audit import dpdp_notice, log, read_all
-from backend.auth import login as auth_login, current_actor, valid_mci
+from backend.auth import change_password as auth_change_password, login as auth_login, current_actor, valid_mci
 from backend.audio_scribe import transcribe
 from backend.config import DATA_RESIDENCY
 from backend.consent import booking_suggestion, filter_memory_by_consent, get_consent, set_consent
@@ -33,7 +33,7 @@ RX_STORE = DATA / "rx_store.json"
 RX_STORE_LOCK = threading.RLock()
 RX_VALIDITY_DAYS = 30
 
-app = FastAPI(title="Cliniva API", version="1.0.0")
+app = FastAPI(title="Cliniva API", version="1.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=[x.strip() for x in os.getenv("CLINIVA_CORS_ORIGINS", "http://127.0.0.1:8000,http://localhost:8000").split(",") if x.strip()], allow_methods=["GET", "POST"], allow_headers=["Authorization", "Content-Type"])
 
 FRONTEND = ROOT / "cliniva"
@@ -125,6 +125,10 @@ class DrugIn(BaseModel):
 
 class MciCheckIn(BaseModel):
     reg: str = Field(default="", max_length=40)
+
+class ChangePwIn(BaseModel):
+    old_password: str = Field(min_length=1, max_length=1024)
+    new_password: str = Field(min_length=8, max_length=1024)
 
 class AudioIn(BaseModel):
     hint: str = Field(default="throat", max_length=100)
@@ -607,6 +611,16 @@ def auth_login_ep(d: LoginIn):
 @app.post("/auth/check-mci")
 def check_mci(d: MciCheckIn):
     return {"reg": d.reg, "valid_format": valid_mci(d.reg)}
+
+
+@app.post("/auth/change-password")
+def change_password_ep(d: ChangePwIn, authorization: str | None = Header(default=None)):
+    actor = _actor(authorization, ["doctor", "patient", "pharmacist"])
+    result = auth_change_password(actor.get("sub", ""), d.old_password, d.new_password)
+    if not result.get("ok"):
+        raise HTTPException(status_code=403, detail=result.get("reason", "Password change failed"))
+    log("password_change", "", actor.get("sub", "user"), {})
+    return {"ok": True, "message": "Password updated. Use your new password at the next sign-in."}
 
 
 @app.post("/consent/{patient_id}")
