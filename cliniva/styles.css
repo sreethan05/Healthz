@@ -230,3 +230,35 @@ textarea.input { resize: vertical; font-family: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .card, .modal, .toast, .status, .rx-item { animation: none !important; transition: none !important; }
 }
+
+/* ---------- doctor extras (rx history, audit) ---------- */
+.topbar-exp { font-size: 0.75rem; color: var(--muted); }
+.rx-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 0.85rem; flex-wrap: wrap; }
+.rx-row:last-child { border-bottom: none; }
+.rx-row-main { flex: 1 1 200px; min-width: 0; }
+.rx-row-meds { display: block; color: var(--muted); font-size: 0.78rem; }
+.rx-row-side { color: var(--muted); font-size: 0.78rem; }
+.audit-list { max-height: 240px; overflow: auto; }
+.audit-row { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 0.78rem; }
+.audit-row:last-child { border-bottom: none; }
+.audit-evt { font-weight: 700; flex: 0 0 auto; }
+.audit-meta { color: var(--muted); flex: 1 1 auto; }
+.audit-ts { color: var(--muted); white-space: nowrap; }
+.signed-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+.rx-print { margin-left: auto; }
+
+/* ---------- responsive ---------- */
+@media (max-width: 640px) {
+  .topbar { position: static; flex-direction: column; align-items: flex-start; }
+  .grid { padding: 14px 12px 40px; }
+  .card { padding: 16px; }
+  .auth-card { padding: 26px 20px; }
+}
+
+/* ---------- print (prescriptions) ---------- */
+@media print {
+  .topbar, .foot, .btn, .toast, .modal-back, #consult-card, #sign-card, #audit-card,
+  #rxlist-card, #consent-card, .pharm-login, .mic-row { display: none !important; }
+  body { background: #fff; }
+  .card { box-shadow: none; border: 1px solid #ddd; break-inside: avoid; }
+}
