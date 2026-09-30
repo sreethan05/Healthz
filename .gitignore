@@ -8,4 +8,5 @@ data/rx_store.json
 data/audit.jsonl
 data/audit_chain.jsonl
 data/consents.json
+data/cliniva.db*
 *.log

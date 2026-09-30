@@ -6,7 +6,7 @@ Cliniva is a local prototype for a clinical memory and prescribing workflow. It 
 
 ## Production app (`cliniva/`)
 
-The `cliniva/` web app is the production client for this API: real JWT login, DPDP consent management, memory-assisted consult drafting, drug-interaction safety screening, HMAC-signed e-prescriptions with scannable QR codes, a public pharmacy verifier with dispense tracking, prescription history, FHIR export, and an audit viewer. No mock data — every action hits the real API.
+The `cliniva/` web app is the production client for this API: real JWT login with salted PBKDF2 credential storage and account lockout (change your password in-app), DPDP consent management, memory-assisted consult drafting, drug-interaction safety screening, HMAC-signed e-prescriptions with scannable QR codes, a public pharmacy verifier with dispense tracking, prescription history, FHIR export, and an audit viewer. No mock data — every action hits the real API.
 
 Sign in at `http://127.0.0.1:8000/app/` with `dr-demo` (doctor), `patient-demo` (patient), or `pharm-demo` (pharmacist) — password `demo123`.
 
@@ -29,6 +29,7 @@ Audit entries intentionally keep medication names and correction free text out o
 ## Project map
 
 - `backend/main.py` — FastAPI routes for consultations, consent, prescriptions, FHIR, audit, and operations
+- `backend/users.py`, `backend/auth.py` — SQLite user store (salted PBKDF2 hashes, lockout) and JWT roles
 - `backend/safety.py` — drug normalization and interaction lookup, with a curated fallback when DDInter data is not mounted
 - `backend/scribe.py`, `backend/audio_scribe.py` — deterministic SOAP drafts and consent-gated audio demo stub
 - `memory/hindsight_client.py` — Hindsight integration or local per-patient JSON memory
@@ -38,13 +39,13 @@ Audit entries intentionally keep medication names and correction free text out o
 
 ## Configuration and limits
 
-Copy `.env.example` to `.env` and load its values in your environment as needed. `CLINIVA_ENV=prod` requires unique auth and prescription secrets of at least 32 characters and disables the built-in demo login. Production use also requires replacing the demo identity store with a real identity provider, deploying authenticated consent capture, configuring TLS and secure key storage, and completing clinical, privacy, and regulatory review. The current consent store, ABDM artefacts, reminders, audit storage, local memory fallback, and region value are demonstration implementations; they do not establish legal compliance, encryption at rest, data residency, or production-grade audit guarantees.
+Copy `.env.example` to `.env` and load its values in your environment as needed. `CLINIVA_ENV=prod` requires unique auth and prescription secrets of at least 32 characters and disables the built-in demo login. Account credentials are stored as salted PBKDF2-SHA256 hashes in `data/cliniva.db` with brute-force lockout and in-app password rotation. Production use still requires replacing the demo identity store with a real identity provider, deploying authenticated consent capture, configuring TLS and secure key storage, and completing clinical, privacy, and regulatory review. The current consent store, ABDM artefacts, reminders, audit storage, local memory fallback, and region value are demonstration implementations; they do not establish legal compliance, encryption at rest, data residency, or production-grade audit guarantees.
 
 `python backend/seed.py` preserves existing memory data. Use `python backend/seed.py --reset` to replace only the two demo patient memory files; prescription records and other patient memory files are preserved.
 
 Run deterministic, offline, isolated module checks with `python test_e2e.py`. They use a temporary directory and do not change project patient, prescription, or audit data. They do not test the HTTP authorization policy.
 
-Install `backend/requirements-dev.txt` and run `pytest tests/api_security_checks.py` for HTTP-level checks of role enforcement, consent defaults and revocation, prescription access, clinical review gating when screening is incomplete, audit minimization, safe upload naming, input validation, and patient-ID handling. The API checks use temporary data stores.
+Install `backend/requirements-dev.txt` and run `pytest tests/` for HTTP-level checks of role enforcement, consent defaults and revocation, prescription access, clinical review gating when screening is incomplete, audit minimization, safe upload naming, input validation, patient-ID handling, and credential hardening (salted PBKDF2 hashes, lockout, password rotation). The API checks use temporary data stores.
 
 ## Interaction database
 

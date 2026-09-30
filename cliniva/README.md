@@ -3,7 +3,9 @@
 [![CI](https://github.com/sreethan05/Healthz/actions/workflows/ci.yml/badge.svg)](https://github.com/sreethan05/Healthz/actions/workflows/ci.yml)
 
 Consult-to-prescription platform: JWT authentication with role-based access
-(doctor / patient / pharmacist), patient-controlled consent (DPDP-aligned),
+(doctor / patient / pharmacist), hardened credential storage (salted PBKDF2-SHA256
+in SQLite, per-account lockout after repeated failures, in-app password change),
+patient-controlled consent (DPDP-aligned),
 memory-assisted SOAP drafting, drug-interaction safety screening, HMAC-signed
 e-prescriptions with scannable QR codes, pharmacy verification and dispense
 tracking, audit logging, and FHIR export.
@@ -20,7 +22,7 @@ cliniva/               production web app (served by the API at /app)
   styles.css             design system
   qr.js                  qrcode-generator (MIT, Kazuhiko Arase) — client QR fallback
 backend/               FastAPI service (auth, consent, consult, safety, sign, dispense…)
-data/                  patient records, memory banks, consent store, Rx store, DDInter rules
+data/                  patient records, memory banks, consent store, Rx store, user DB, DDInter rules
 memory/                Hindsight memory client (local JSON banks; HINDSIGHT_URL for remote)
 ```
 
@@ -58,7 +60,7 @@ Open **http://127.0.0.1:8000/app/**
 ## API surface (selected)
 
 `POST /auth/login` · `GET /patients` · `POST /consult` · `POST /correct` · `POST /sign` ·
-`POST /verify` · `GET /rx/{id}` · `GET /fhir-rx/{id}` · `GET /timeline/{id}` ·
+`POST /verify` · `POST /auth/change-password` · `GET /rx/{id}` · `GET /fhir-rx/{id}` · `GET /timeline/{id}` ·
 `GET /me` · `POST /me/consent` · `GET /me/rx` · `GET /public/rx/{id}?h=` · `POST /dispense/{id}` ·
 `GET /doctor/rx` · `GET /audit` · `GET /ops/health`
 
@@ -69,7 +71,8 @@ Open **http://127.0.0.1:8000/app/**
 - Set `CLINIVA_VERIFY_BASE` to your public origin so QR links are correct behind proxies (defaults to the request host).
 - Set `CLINIVA_CORS_ORIGINS` if the app is hosted separately from the API.
 - Serve over HTTPS (reverse proxy); the API sets HSTS-grade security headers, rate limits auth/consult/sign, and stores no secrets in code.
-- Swap the local auth users for a real identity provider (Keycloak / ABDM HPR) before real clinical use; set `ABDM_MODE=sandbox|prod` for ABDM consent artefacts.
+- Accounts live in `data/cliniva.db` (SQLite): salted PBKDF2-SHA256 hashes (200k iterations), brute-force lockout (5 failures → 15 minutes, counted for unknown usernames too so accounts cannot be enumerated), and in-app password rotation. Demo accounts are seeded only when absent.
+- Swap the local accounts for a real identity provider (Keycloak / ABDM HPR) before real clinical use — the JWT contract stays the same; set `ABDM_MODE=sandbox|prod` for ABDM consent artefacts.
 
 ## Deployment
 
@@ -77,7 +80,7 @@ The included `Dockerfile` containerises the API. Any host works (Render, Railway
 
 ## Verification
 
-`e2e_prod.js` (happy-dom) drives the real app against the real API: login → consult → conflict → correction → sign → patient portal → pharmacy verify → dispense → tamper rejection.
+`e2e_prod.js` (happy-dom) drives the real app against the real API: login → consult → conflict → correction → sign → patient portal → pharmacy verify → dispense → tamper rejection → password change → brute-force lockout.
 
 ---
 Cliniva supports, does not replace, clinical judgment. Not certified for real patient care.
