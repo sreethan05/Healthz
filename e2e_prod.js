@@ -148,6 +148,40 @@ async function waitFor(fn, ms, label) {
   await waitFor(() => document.querySelector(".status-red"), 15000, "tamper status");
   check("tampered hash rejected", document.querySelector(".status-red") !== null);
 
+  // --- account security: change password (UI) ---
+  window.API.logout();
+  window.location.hash = "#/login";
+  window.dispatchEvent(new window.Event("hashchange"));
+  await sleep(300);
+  document.getElementById("login-user").value = "patient-demo";
+  document.getElementById("login-pass").value = "demo123";
+  document.getElementById("login-form").dispatchEvent(new window.Event("submit", { cancelable: true }));
+  await waitFor(() => document.getElementById("consent-card"), 15000, "patient portal (2nd login)");
+  check("account security card present", document.getElementById("account-card") !== null);
+  document.getElementById("pw-old").value = "demo123";
+  document.getElementById("pw-new").value = "rotated-pw-42";
+  document.getElementById("pw-btn").dispatchEvent(new window.Event("click", { cancelable: true }));
+  await waitFor(() => document.getElementById("pw-out").textContent.indexOf("Password updated") >= 0, 15000, "password changed");
+  check("password change succeeds in UI", true);
+  // old password must now fail, new one must work (API-level)
+  const oldTry = await jfetch(BASE + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "patient-demo", password: "demo123" }) });
+  check("old password rejected after change", oldTry.status === 401);
+  const newTry = await jfetch(BASE + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "patient-demo", password: "rotated-pw-42" }) });
+  check("new password accepted", newTry.status === 200);
+  // restore the original password for future runs
+  const rtok = (await newTry.json()).token;
+  await jfetch(BASE + "/auth/change-password", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + rtok }, body: JSON.stringify({ old_password: "rotated-pw-42", new_password: "demo123" }) });
+
+  // --- brute-force lockout (uses a probe username so demo accounts stay usable) ---
+  for (let i = 0; i < 5; i++) {
+    await jfetch(BASE + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "lockout-probe", password: "bad-" + i }) });
+  }
+  const lockedTry = await jfetch(BASE + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "lockout-probe", password: "anything" }) });
+  const lockedBody = await lockedTry.json();
+  check("brute-force lockout engages", lockedTry.status === 401 && /locked/i.test(lockedBody.detail || ""));
+  const okTry = await jfetch(BASE + "/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "dr-demo", password: "demo123" }) });
+  check("other accounts unaffected by lockout", okTry.status === 200);
+
   console.log(failures === 0 ? "\nALL E2E CHECKS PASSED" : "\n" + failures + " CHECKS FAILED");
   process.exit(failures === 0 ? 0 : 1);
 })().catch(e => { console.error("E2E ERROR:", e.message); process.exit(2); });

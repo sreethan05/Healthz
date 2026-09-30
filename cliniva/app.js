@@ -190,6 +190,46 @@
     });
   }
 
+  /* ---------- account security (all roles) ---------- */
+
+  function accountCard() {
+    return '<section class="card" id="account-card">' +
+      '<h2>Account security</h2>' +
+      '<p class="hint">Change your sign-in password. Minimum 8 characters. Stored as a salted PBKDF2 hash.</p>' +
+      '<label class="field"><span>Current password</span>' +
+      '<input id="pw-old" type="password" class="input" autocomplete="current-password" aria-label="Current password"></label>' +
+      '<label class="field"><span>New password</span>' +
+      '<input id="pw-new" type="password" class="input" autocomplete="new-password" minlength="8" aria-label="New password"></label>' +
+      '<button class="btn btn-ghost" id="pw-btn">Update password</button>' +
+      '<div id="pw-out"></div></section>';
+  }
+
+  function bindAccountCard() {
+    var btn = document.getElementById("pw-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var oldPw = document.getElementById("pw-old").value;
+      var newPw = document.getElementById("pw-new").value;
+      var out = document.getElementById("pw-out");
+      if (!oldPw || newPw.length < 8) {
+        out.innerHTML = '<div class="banner banner-amber">Enter your current password and a new one of at least 8 characters.</div>';
+        return;
+      }
+      btn.disabled = true;
+      out.innerHTML = spinner("Updating…");
+      API.post("/auth/change-password", { old_password: oldPw, new_password: newPw }).then(function (r) {
+        btn.disabled = false;
+        out.innerHTML = '<div class="banner banner-ok">' + esc(r.message || "Password updated.") + "</div>";
+        document.getElementById("pw-old").value = "";
+        document.getElementById("pw-new").value = "";
+        toast("Password updated");
+      }, function (err) {
+        btn.disabled = false;
+        out.innerHTML = banner((err && err.error) || "Password change failed");
+      });
+    });
+  }
+
   /* ---------- doctor screen ---------- */
 
   var doc = { patientId: "", patients: [], timeline: null, consult: null, corrected: null, signed: null };
@@ -203,9 +243,11 @@
       '<section class="card" id="sign-card"></section>' +
       '<section class="card" id="rxlist-card"></section>' +
       '<section class="card" id="audit-card"></section>' +
+      accountCard() +
       "</main>" +
       '<footer class="foot">Cliniva supports, does not replace, clinical judgment. Prescriptions are valid for 30 days. All actions are audit-logged.</footer>';
     bindLogout();
+    bindAccountCard();
     renderConsultCard();
     loadDoctorRx();
     loadAudit();
@@ -504,9 +546,11 @@
       '<section class="card" id="profile-card">' + spinner("Loading profile…") + '</section>' +
       '<section class="card" id="consent-card"></section>' +
       '<section class="card" id="rx-card"></section>' +
+      accountCard() +
       "</main>" +
       '<footer class="foot">You control your data (DPDP). Revoking consent immediately locks doctor access to the matching scope.</footer>';
     bindLogout();
+    bindAccountCard();
     API.get("/me").then(function (me) {
       pat.me = me;
       renderProfileCard();
