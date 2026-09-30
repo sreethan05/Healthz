@@ -4,7 +4,15 @@ Frontend-only demo of the consult-to-prescription flow. **All data is mock data*
 behind simple function contracts — no backend, no real STT, auth, Hindsight calls
 or QR crypto. The backend will replace the contracts later.
 
-## Run it
+## Live demo
+
+**https://sreethan05.github.io/Healthz/cliniva/**
+
+Hosted via GitHub Pages — open it on any device, no setup needed. The QR codes
+in the demo encode this live URL, so scanning one with a phone camera opens the
+pharmacy verify screen directly.
+
+## Run it locally
 
 No build step. Either open `index.html` directly in a browser, or serve the folder:
 
@@ -27,7 +35,7 @@ so the demo works from any static host or the local filesystem.
    Rx ID `RX-8F3A-2026`, QR preview appears.
 4. **Logout → Log in as Patient** → visit summary, current e-Rx with large QR,
    follow-up cards with reminder toggles (toast confirms each reminder).
-5. Scan the QR with a phone (same network) or click it → **pharmacy verifier**:
+5. Scan the QR with a phone (any network) or click it → **pharmacy verifier**:
    VALID → **Mark as Dispensed** → DISPENSED. Try `#/rx/XXXX` for INVALID.
 6. Access-denied demo: while logged in as patient, open `#/doctor`, or
    `#/patient?id=P-9999`.
@@ -43,9 +51,9 @@ In `mocks.js`: `getMockPatient`, `streamMockTranscript`, `checkMockSafety`,
 - RBAC is a client-side demo guard only (sessionStorage `cliniva_role`) — no
   real security claims.
 - QR codes are **real and scannable**: `qr.js` (qrcode-generator, MIT licence —
-  Copyright Kazuhiko Arase) renders genuine QR codes. Serve the demo over http
-  (e.g. `python3 -m http.server`) and a phone camera opens the pharmacy verify
-  screen directly from the QR tile. From `file://` the code falls back to the
-  short verify code.
+  Copyright Kazuhiko Arase) renders genuine QR codes. Served over http (or the
+  live Pages URL above), a phone camera opens the pharmacy verify screen
+  directly from the QR tile. From `file://` the code falls back to the short
+  verify code.
 - Micro-animations respect `prefers-reduced-motion`.
 - Statuses reset on page reload (in-memory only).
