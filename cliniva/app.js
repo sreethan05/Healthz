@@ -36,8 +36,16 @@
     } catch (e) { return ""; }
   }
 
+  function jwtExp() {
+    try {
+      var part = API.token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      return JSON.parse(atob(part)).exp || 0;
+    } catch (e) { return 0; }
+  }
+
   function toast(msg, kind) {
     var t = document.createElement("div");
+    t.setAttribute("role", "status");
     t.className = "toast" + (kind === "err" ? " toast-err" : "");
     t.textContent = msg;
     document.body.appendChild(t);
@@ -128,8 +136,8 @@
       '<div class="auth-sub">Consult-to-prescription platform — sign in to continue</div>' +
       (msg ? banner(msg) : "") +
       '<form id="login-form" autocomplete="off">' +
-      '<label class="field"><span>Username</span><input id="login-user" required maxlength="100" autofocus></label>' +
-      '<label class="field"><span>Password</span><input id="login-pass" type="password" required maxlength="1024"></label>' +
+      '<label class="field"><span>Username</span><input id="login-user" required maxlength="100" autofocus aria-label="Username"></label>' +
+      '<label class="field"><span>Password</span><input id="login-pass" type="password" required maxlength="1024" aria-label="Password"></label>' +
       '<button class="btn btn-primary btn-block" type="submit">Sign in</button>' +
       "</form>" +
       '<div class="auth-accounts">' +
@@ -169,6 +177,7 @@
     return '<div class="topbar"><div><div class="brand">Cliniva<span class="brand-dot">.</span></div>' +
       '<div class="topbar-sub">' + esc(title) + (sub ? " · " + esc(sub) : "") + "</div></div>" +
       '<div class="topbar-right"><span class="pill pill-outline">' + esc(API.role) + "</span>" +
+      (jwtExp() ? '<span class="topbar-exp" title="Session expiry">session ' + Math.max(0, Math.round((jwtExp() - Date.now() / 1000) / 3600)) + "h</span>" : "") +
       '<span class="topbar-user">' + esc(API.user) + "</span>" +
       '<button class="btn btn-ghost" id="logout-btn">Sign out</button></div></div>';
   }
@@ -192,10 +201,14 @@
       '<section class="card" id="consult-card"></section>' +
       '<section class="card" id="draft-card"></section>' +
       '<section class="card" id="sign-card"></section>' +
+      '<section class="card" id="rxlist-card"></section>' +
+      '<section class="card" id="audit-card"></section>' +
       "</main>" +
       '<footer class="foot">Cliniva supports, does not replace, clinical judgment. Prescriptions are valid for 30 days. All actions are audit-logged.</footer>';
     bindLogout();
     renderConsultCard();
+    loadDoctorRx();
+    loadAudit();
     API.get("/patients").then(function (list) {
       doc.patients = list || [];
       doc.patientId = doc.patients.length ? doc.patients[0].patient_id : "";
@@ -399,6 +412,8 @@
         renderSignedResult(out, r);
         document.getElementById("draft-card").innerHTML = "";
         document.getElementById("consult-card").innerHTML = "";
+        loadDoctorRx();
+        loadAudit();
       }, function (err) {
         btn.disabled = false;
         var safetyDetail = err && err.detail && err.detail.safety;
@@ -422,12 +437,19 @@
       '<div class="kv"><span>Valid until</span><b>' + fmtDate(b.issued_at + 30 * 86400) + "</b></div></div>" +
       '<div class="qr-wrap">' + qrHtml(r.qr_png_base64, r.qr_payload, true) +
       '<div class="hint">Pharmacy scans this QR to verify and dispense.<br><a href="' + esc(r.qr_payload) + '" target="_blank" rel="noopener">Open verify link</a> · hash <code>' + esc(String(r.hash).slice(0, 16)) + "</code></div></div>" +
-      '<button class="btn btn-ghost" id="new-consult">New consult</button></div>';
+      '<div class="signed-actions">' +
+      '<button class="btn btn-ghost" id="fhir-btn">Export FHIR</button>' +
+      '<button class="btn btn-ghost" id="print-btn">Print</button>' +
+      '<button class="btn btn-ghost" id="new-consult">New consult</button></div></div>';
     renderClientQr(el);
     el.querySelector("#new-consult").addEventListener("click", function () {
       doc.transcript = ""; doc.consult = null; doc.corrected = null; doc.signed = null;
       renderDoctor();
     });
+    var fb = el.querySelector("#fhir-btn");
+    if (fb) fb.addEventListener("click", function () { exportFhir(r.rx_id, fb); });
+    var pb = el.querySelector("#print-btn");
+    if (pb) pb.addEventListener("click", function () { window.print(); });
   }
 
   /* safety conflict modal */
@@ -551,13 +573,87 @@
       return '<div class="rx-item">' +
         '<div class="rx-head">' + statusPill(r.status) +
         '<div class="kv"><span>Issued</span><b>' + fmtDate(r.issued_at) + " · " + esc(r.doctor_id) + "</b></div>" +
-        '<div class="kv"><span>Valid until</span><b>' + fmtDate(r.expires_at) + "</b></div></div>" +
+        '<div class="kv"><span>Valid until</span><b>' + fmtDate(r.expires_at) + "</b></div>" +
+        '<button class="btn btn-ghost btn-sm rx-print" title="Print prescription">Print</button></div>' +
         '<ul class="med-list">' + (r.meds || []).map(function (m) { return "<li>" + esc(m) + "</li>"; }).join("") + "</ul>" +
         '<div class="qr-wrap">' + qrHtml(r.qr_png_base64, r.qr_payload) +
         '<div class="hint">Show this QR at the pharmacy. <a href="' + esc(r.qr_payload) + '" target="_blank" rel="noopener">Open verify link</a></div></div>' +
         "</div>";
     }).join("");
     renderClientQr(el);
+    el.querySelectorAll(".rx-print").forEach(function (b) {
+      b.addEventListener("click", function () { window.print(); });
+    });
+  }
+
+  /* ---------- doctor extras: rx history, audit, FHIR export ---------- */
+
+  function loadDoctorRx() {
+    var el = document.getElementById("rxlist-card");
+    if (!el) return;
+    API.get("/doctor/rx").then(function (list) {
+      list = list || [];
+      if (!list.length) {
+        el.innerHTML = '<h2>Issued prescriptions</h2><div class="hint">Nothing issued yet. Signed prescriptions appear here with status and FHIR export.</div>';
+        return;
+      }
+      el.innerHTML = '<h2>Issued prescriptions (' + list.length + ')</h2>' + list.slice(0, 6).map(function (r) {
+        return '<div class="rx-row">' + statusPill(r.status) +
+          '<div class="rx-row-main"><b>' + esc(r.patient_name || r.patient_id) + '</b>' +
+          '<span class="rx-row-meds">' + esc((r.meds || []).join("; ")) + '</span></div>' +
+          '<span class="rx-row-side">' + fmtDate(r.issued_at) + '</span>' +
+          '<button class="btn btn-ghost btn-sm" data-fhir="' + esc(r.rx_id) + '">FHIR</button>' +
+          '</div>';
+      }).join("");
+      el.querySelectorAll("[data-fhir]").forEach(function (b) {
+        b.addEventListener("click", function () { exportFhir(b.getAttribute("data-fhir"), b); });
+      });
+    }, function () { /* panel stays quiet on failure */ });
+  }
+
+  function loadAudit() {
+    var el = document.getElementById("audit-card");
+    if (!el) return;
+    API.get("/audit?limit=15").then(function (rows) {
+      rows = rows || [];
+      if (!rows.length) {
+        el.innerHTML = '<h2>Audit trail</h2><div class="hint">No activity recorded yet.</div>';
+        return;
+      }
+      el.innerHTML = '<h2>Audit trail</h2><div class="audit-list">' + rows.slice().reverse().map(function (r) {
+        return '<div class="audit-row"><span class="audit-evt">' + esc(r.event) + '</span>' +
+          '<span class="audit-meta">' + esc(r.actor || "—") + (r.patient_id ? " · " + esc(r.patient_id) : "") + '</span>' +
+          '<span class="audit-ts">' + fmtTime(r.ts) + '</span></div>';
+      }).join("") + "</div>";
+    }, function () { /* panel stays quiet on failure */ });
+  }
+
+  function exportFhir(rxId, btn) {
+    if (btn) btn.disabled = true;
+    API.get("/fhir-rx/" + encodeURIComponent(rxId)).then(function (r) {
+      if (!r || !r.found || !r.valid) {
+        toast("FHIR export unavailable for this prescription", "err");
+        if (btn) btn.disabled = false;
+        return;
+      }
+      var text = JSON.stringify(r.fhir_bundle, null, 2);
+      try {
+        var blob = new Blob([text], { type: "application/fhir+json" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "cliniva-rx-" + String(rxId).slice(0, 8) + ".json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast("FHIR bundle exported");
+      } catch (e) {
+        toast("FHIR download not supported in this browser", "err");
+      }
+      if (btn) btn.disabled = false;
+    }, function (err) {
+      toast((err && err.error) || "FHIR export failed", "err");
+      if (btn) btn.disabled = false;
+    });
   }
 
   /* ---------- pharmacy screen (public) ---------- */
