@@ -1,5 +1,7 @@
 # Cliniva — Production e-Prescription Platform
 
+[![CI](https://github.com/sreethan05/Healthz/actions/workflows/ci.yml/badge.svg)](https://github.com/sreethan05/Healthz/actions/workflows/ci.yml)
+
 Consult-to-prescription platform: JWT authentication with role-based access
 (doctor / patient / pharmacist), patient-controlled consent (DPDP-aligned),
 memory-assisted SOAP drafting, drug-interaction safety screening, HMAC-signed
@@ -51,14 +53,14 @@ Open **http://127.0.0.1:8000/app/**
 4. **Sign**: the API blocks unsafe prescriptions (409), requires explicit clinician confirmation when screening is incomplete, then issues an HMAC-signed prescription (Rx ID, SHA-256 hash, QR with verify URL + hash prefix). Valid 30 days.
 5. **Patient portal**: profile, consent switches (revoking a scope locks doctor access immediately), prescriptions with QR codes.
 6. **Pharmacy**: scan the QR (or open the link) → public verifier checks signature + hash prefix → VALID/DISPENSED/EXPIRED; a pharmacist signs in to mark dispensed. Tampered hashes are rejected.
-7. Every step is audit-logged; FHIR bundles are exportable per prescription.
+7. Doctor console extras: issued-prescription history with status, FHIR bundle export (downloadable JSON), printable prescriptions, and a live audit trail viewer. Every step is audit-logged; FHIR bundles are exportable per prescription.
 
 ## API surface (selected)
 
 `POST /auth/login` · `GET /patients` · `POST /consult` · `POST /correct` · `POST /sign` ·
 `POST /verify` · `GET /rx/{id}` · `GET /fhir-rx/{id}` · `GET /timeline/{id}` ·
 `GET /me` · `POST /me/consent` · `GET /me/rx` · `GET /public/rx/{id}?h=` · `POST /dispense/{id}` ·
-`GET /audit` · `GET /ops/health`
+`GET /doctor/rx` · `GET /audit` · `GET /ops/health`
 
 ## Production hardening notes
 

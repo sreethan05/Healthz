@@ -101,6 +101,20 @@ async function waitFor(fn, ms, label) {
   const href = link ? link.getAttribute("href") : "";
   const m = href.match(/#\/rx\/([^?]+)\?h=([0-9a-f]+)/);
   check("verify link carries rx id + hash", !!m);
+  check("FHIR + print actions on signed card", document.getElementById("fhir-btn") !== null && document.getElementById("print-btn") !== null);
+
+  // --- FHIR bundle export (API-level) ---
+  const dtok = window.sessionStorage.getItem("cliniva_token");
+  const fh = await jfetch(BASE + "/fhir-rx/" + m[1], { headers: { Authorization: "Bearer " + dtok } });
+  const fhj = await fh.json();
+  check("FHIR bundle exportable", !!(fhj && fhj.fhir_bundle && (fhj.fhir_bundle.resourceType === "Bundle" || Array.isArray(fhj.fhir_bundle.entry))));
+
+  // --- doctor extras: rx history + audit refresh after signing ---
+  await waitFor(() => document.querySelector("#rxlist-card .rx-row"), 15000, "rx history");
+  check("doctor sees issued prescriptions", document.querySelector("#rxlist-card .rx-row") !== null);
+  await waitFor(() => (document.querySelector("#audit-card") || {}).textContent, 10000, "audit card");
+  check("audit trail shows rx_sign event", document.querySelector("#audit-card").textContent.indexOf("rx_sign") >= 0);
+  check("session expiry shown in header", document.querySelector(".topbar-exp") !== null);
 
   // --- patient portal ---
   document.getElementById("logout-btn").dispatchEvent(new window.Event("click", { cancelable: true }));

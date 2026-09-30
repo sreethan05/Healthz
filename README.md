@@ -2,6 +2,16 @@
 
 Cliniva is a local prototype for a clinical memory and prescribing workflow. It drafts notes and safety checks for clinician review; it is not a clinical system and must not be used with real patient data.
 
+[![CI](https://github.com/sreethan05/Healthz/actions/workflows/ci.yml/badge.svg)](https://github.com/sreethan05/Healthz/actions/workflows/ci.yml)
+
+## Production app (`cliniva/`)
+
+The `cliniva/` web app is the production client for this API: real JWT login, DPDP consent management, memory-assisted consult drafting, drug-interaction safety screening, HMAC-signed e-prescriptions with scannable QR codes, a public pharmacy verifier with dispense tracking, prescription history, FHIR export, and an audit viewer. No mock data — every action hits the real API.
+
+Sign in at `http://127.0.0.1:8000/app/` with `dr-demo` (doctor), `patient-demo` (patient), or `pharm-demo` (pharmacist) — password `demo123`.
+
+`node e2e_prod.js` (after `npm install happy-dom`, with the API running) drives the full app end to end: login → consult → conflict → correction → sign → patient portal → pharmacy verify → dispense → tamper rejection.
+
 ## Run locally
 
 ```powershell
@@ -23,7 +33,8 @@ Audit entries intentionally keep medication names and correction free text out o
 - `backend/scribe.py`, `backend/audio_scribe.py` — deterministic SOAP drafts and consent-gated audio demo stub
 - `memory/hindsight_client.py` — Hindsight integration or local per-patient JSON memory
 - `backend/rx_sign.py`, `backend/fhir.py` — signed demo prescriptions and FHIR bundle generation
-- `frontend/` — browser demo
+- `frontend/` — original browser demo
+- `cliniva/` — production web app (JWT auth, consent, e-prescriptions, pharmacy verifier)
 
 ## Configuration and limits
 
