@@ -25,7 +25,8 @@ def qr_png_base64(payload: str) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def sign_prescription(patient_id: str, doctor_id: str, doctor_reg: str, meds: list, soap: dict) -> dict:
+def sign_prescription(patient_id: str, doctor_id: str, doctor_reg: str, meds: list, soap: dict,
+                      verify_base: str | None = None) -> dict:
     rx_id = str(uuid.uuid4())
     body = {
         "rx_id": rx_id,
@@ -39,7 +40,7 @@ def sign_prescription(patient_id: str, doctor_id: str, doctor_reg: str, meds: li
     }
     digest = hashlib.sha256(_canonical(body).encode()).hexdigest()
     token = jwt.encode({**body, "hash": digest}, SECRET, algorithm="HS256")
-    qr_payload = f"{VERIFY_BASE}/{rx_id}?h={digest[:16]}"
+    qr_payload = f"{verify_base or VERIFY_BASE}/{rx_id}?h={digest[:16]}"
     try:
         qr_b64 = qr_png_base64(qr_payload)
     except Exception:
@@ -51,7 +52,7 @@ def sign_prescription(patient_id: str, doctor_id: str, doctor_reg: str, meds: li
         "token": token,
         "qr_payload": qr_payload,
         "qr_png_base64": qr_b64,
-        "verify_hint": "Pharmacy scans QR -> open verify page -> paste token -> hash recomputed. Mismatch = TAMPERED.",
+        "verify_hint": "Pharmacy scans QR -> opens verify screen -> hash recomputed. Mismatch = TAMPERED.",
     }
 
 
