@@ -454,6 +454,38 @@ def me_rx(authorization: str | None = Header(default=None)):
     return out
 
 
+# ---------- Doctor prescription history ----------
+
+@app.get("/doctor/rx")
+def doctor_rx(authorization: str | None = Header(default=None)):
+    _actor(authorization, ["doctor"])
+    pmap = _load_patients()
+    out = []
+    with RX_STORE_LOCK:
+        store = _load_rx()
+        for rx_id, rec in store.items():
+            v = verify_prescription(rec["token"])
+            if not v.get("valid"):
+                continue
+            rx = v["rx"]
+            pid = rx.get("patient_id", "")
+            consent = get_consent(pid)
+            if consent.revoked or not consent.medications:
+                continue
+            out.append({
+                "rx_id": rx_id,
+                "patient_id": pid,
+                "patient_name": (pmap.get(pid, {}) or {}).get("name", ""),
+                "meds": rx.get("meds", []),
+                "doctor_id": rx.get("doctor_id"),
+                "issued_at": rx.get("issued_at", 0),
+                "expires_at": rx.get("issued_at", 0) + RX_VALIDITY_DAYS * 86400,
+                "status": _rx_status(rec, v),
+            })
+    out.sort(key=lambda r: r["issued_at"], reverse=True)
+    return out
+
+
 # ---------- Public pharmacy verification + dispense ----------
 
 @app.get("/public/rx/{rx_id}")
